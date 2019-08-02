@@ -3,7 +3,7 @@ package main
 import (
 	"log"
 	"mednicklab/models"
-	"mednicklab/routes"
+	"mednicklab/handles"
 	"net/http"
 )
 
@@ -13,7 +13,7 @@ type MyContext struct {
 }
 
 func main() {
-	dbAddress := ""
+	dbAddress := "mongodb+srv://jh:123zxc%40asd@cluster0-gg3iq.mongodb.net/test?retryWrites=true&w=majority"
 	dbClient, err := models.NewDB(dbAddress)
 	if err != nil {
 		log.Panic(err)
@@ -27,9 +27,9 @@ func main() {
 	// PUT     	/files/12321fe12d4						update the file info whose fid=12321fe12d4 with new info enclosed in request body
 	// DELETE	/files/12321fe12d4						delete the file whose fid=12321fe12d4
 
-	http.Handle("/files/", routes.FileHandler(dbClient))
+	http.Handle("/files/", handles.FileHandler(dbClient))
 
-	//http.Handle("/data/",routes.DataHandler(dbClient))
+	//http.Handle("/data/",handles.DataHandler(dbClient))
 	http.ListenAndServe(":8080", nil)
 
 }
