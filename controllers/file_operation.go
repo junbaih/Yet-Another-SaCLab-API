@@ -4,13 +4,13 @@ import (
 	//"controllers/parser"
 	"encoding/json"
 	"fmt"
-	"io"
+	_ "io"
 	"io/ioutil"
 	"log"
 	"mednicklab/models"
 	"net/http"
 	"net/url"
-	"os"
+	_ "os"
 )
 
 var filedir string = ""
@@ -33,12 +33,14 @@ func CreateFiles(db models.DatabaseAccess, w http.ResponseWriter, r *http.Reques
 
 	var t map[string]interface{}
 
+	
 	fileinfo := r.FormValue("data")
 	if fileinfo == "" {
 		panic("file info is empty")
 	}
 	log.Println(fileinfo)
-
+	
+	
 	err := json.Unmarshal([]byte(fileinfo), &t)
 	if err != nil {
 		panic(err)
@@ -48,7 +50,7 @@ func CreateFiles(db models.DatabaseAccess, w http.ResponseWriter, r *http.Reques
 		http.Error(w, "File info not complete, unable to process", 400)
 		return
 	}
-
+/*
 	file, fhandler, err := r.FormFile("fileobj")
 	if err != nil {
 		panic(err)
@@ -66,6 +68,8 @@ func CreateFiles(db models.DatabaseAccess, w http.ResponseWriter, r *http.Reques
 	}
 	defer f.Close()
 	io.Copy(f, file)
+*/
+
 
 	// err = prepareDocument(t)
 
@@ -78,6 +82,7 @@ func CreateFiles(db models.DatabaseAccess, w http.ResponseWriter, r *http.Reques
 
 	// err = expirePreviousVersion(t)
 
+	log.Println("controller pass t to db",t)
 	fid, err := db.Insert(t)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -108,23 +113,27 @@ func RetrieveFiles(db models.DatabaseAccess, w http.ResponseWriter, r *http.Requ
 	if match,_ := urlContainsID(r.URL.RequestURI()[len("/files/"):]); match {
 		query:=r.URL.RequestURI()[len("/files/"):]
 		r.Form["_id"]=[]string{query}
-		
+		fmt.Println("find id, added to form")
 	 }
 	// get file by query ==> GET /files/?operand1=operator:operand2
 
-	
+	fmt.Println(r.Form)
 
-	res,err:=db.Find(r.Form)
+
+	ret,err:=db.Find(r.Form)
 	if err!=nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		log.Fatal(err)
 	}
-	ret,_:=res.([]models.FileInfo)
+	//ret,_:=res.([]models.FileInfo)
 	
 	fmt.Println(url.PathUnescape(r.URL.RequestURI()[len("/files/?"):]))
 	//w.Write([]byte("file read"))
-	http.ServeFile(w, r, ret[0].FilePath)
-	
+	f,ok:= ret[0].(models.FileInfo)
+	if !ok {
+		fmt.Println("not ok")
+	}	
+	http.ServeFile(w, r, f.FilePath)
 }
 
 /*
