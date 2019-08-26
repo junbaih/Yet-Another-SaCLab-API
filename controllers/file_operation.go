@@ -4,13 +4,13 @@ import (
 	//"controllers/parser"
 	"encoding/json"
 	"fmt"
-	_ "io"
+	"io"
 	"io/ioutil"
 	"log"
 	"mednicklab/models"
 	"net/http"
 	"net/url"
-	_ "os"
+	"os"
 )
 
 var filedir string = ""
@@ -19,17 +19,24 @@ var filedir string = ""
  To be consistent with existing server&client apps implementation, 
  request body uses a nested data form.  ie => request.data = {"data":json_serialized_string<actual_data>}
  This allows server to get query by directly parsing url without reading Request.Body 
+ 
+ Also notice that there is no need to use channel to achieve asychronous calls like in node.js,
+ go http lib put every connection in a goroutine, i.e. " go c.serve() " ,
+ wherea nodejs only has a single thread which requires explicit asynchronous calls
 */
 func CreateFiles(db models.DatabaseAccess, w http.ResponseWriter, r *http.Request) {
 	if r.URL.Path != "/files/" {
 		http.Error(w, http.StatusText(400), 400)
 		return
 	}
+	r.ParseForm()
 	r.ParseMultipartForm(32 << 20)
+
 	fmt.Println("create Files:")
 	fmt.Println(r.Header)
 	fmt.Println(r.Form)
 	fmt.Println(r.MultipartForm)
+	fmt.Println(r.Body)
 
 	var t map[string]interface{}
 
@@ -50,7 +57,7 @@ func CreateFiles(db models.DatabaseAccess, w http.ResponseWriter, r *http.Reques
 		http.Error(w, "File info not complete, unable to process", 400)
 		return
 	}
-/*
+
 	file, fhandler, err := r.FormFile("fileobj")
 	if err != nil {
 		panic(err)
@@ -68,7 +75,7 @@ func CreateFiles(db models.DatabaseAccess, w http.ResponseWriter, r *http.Reques
 	}
 	defer f.Close()
 	io.Copy(f, file)
-*/
+	log.Println("file is saved to the disk")
 
 
 	// err = prepareDocument(t)
@@ -109,13 +116,16 @@ func RetrieveFiles(db models.DatabaseAccess, w http.ResponseWriter, r *http.Requ
 	fmt.Println(r.Form)
 	fmt.Println(r.URL.RequestURI())
 	
-	// get file with fid ==> GET /files/<fid>
-	if match,_ := urlContainsID(r.URL.RequestURI()[len("/files/"):]); match {
+	// get(download) file with fid ==> GET /files/<fid>
+	
+	isDownloadingRequest, _ := urlContainsID(r.URL.RequestURI()[len("/files/"):])
+	if isDownloadingRequest {
 		query:=r.URL.RequestURI()[len("/files/"):]
 		r.Form["_id"]=[]string{query}
-		fmt.Println("find id, added to form")
+		log.Println("find id, added to form")	
 	 }
-	// get file by query ==> GET /files/?operand1=operator:operand2
+	 
+	// get file info by query ==> GET /files/?operand1=operator:operand2
 
 	fmt.Println(r.Form)
 
@@ -125,19 +135,26 @@ func RetrieveFiles(db models.DatabaseAccess, w http.ResponseWriter, r *http.Requ
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		log.Fatal(err)
 	}
-	//ret,_:=res.([]models.FileInfo)
 	
 	fmt.Println(url.PathUnescape(r.URL.RequestURI()[len("/files/?"):]))
-	//w.Write([]byte("file read"))
-	f,ok:= ret[0].(models.FileInfo)
-	if !ok {
-		fmt.Println("not ok")
-	}	
-	http.ServeFile(w, r, f.FilePath)
+	
+	if isDownloadingRequest {
+		if len(ret)> 1 {
+			http.Error(w, http.StatusText(500), http.StatusInternalServerError)
+			log.Fatalf("Should only exist one downloading file, found %v",len(ret));
+		}
+		f,ok:= ret[0].(models.FileInfo)
+		if !ok {
+			fmt.Println("not ok")
+		}	
+		http.ServeFile(w, r, f.FilePath)
+	} else {
+		serveJson(w,ret)
+	}
 }
 
 /*
- A example to process requests with json body 
+ An example to process requests with json body 
 */
 func UpdateFiles(db models.DatabaseAccess, w http.ResponseWriter, r *http.Request) {
 	r.ParseMultipartForm(32 << 20)
@@ -202,4 +219,14 @@ func DeleteFiles(db models.DatabaseAccess, w http.ResponseWriter, r *http.Reques
 		log.Fatal(err)
 	}
 	w.Write([]byte("file deleted"))
+}
+
+func serveJson(w http.ResponseWriter, r interface{}) {
+	ret, err := json.Marshal(r)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		log.Fatal(err)
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.Write(ret)
 }

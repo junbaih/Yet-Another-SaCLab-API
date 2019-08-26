@@ -18,7 +18,7 @@ func main() {
 	if err != nil {
 		log.Panic(err)
 	}
-	http.Handle("/login", http.NotFoundHandler()) //TODO
+	http.Handle("/login", http.NotFoundHandler()) //TODO using jwt https://godoc.org/github.com/dgrijalva/jwt-go#example-Parse--Hmac
 	http.Handle("/", http.NotFoundHandler())      //TODO frontend connectivity
 
 	// GET  	/files/12321fe12d4                      download the file whose fid=12321fe12d4

@@ -24,4 +24,3 @@ func urlContainsID(s string) (bool,error){
 	 return regexp.MatchString(`(?i)^[a-f\d]{24}$`, s)
 }
 
-

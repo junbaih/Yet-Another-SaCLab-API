@@ -12,6 +12,8 @@ import (
 	"net/http/httptest"
 	"net/url"
 	"math/rand"
+	"mime/multipart"
+	"os"
     "time"
 	"fmt"
 	"log"
@@ -32,6 +34,7 @@ func randID(length int) string {
   return string(b)
 }
 
+// modified from code samples on stackoverflow 
 func SetField(obj interface{}, name string, value interface{}) error {
     structValue := reflect.ValueOf(obj).Elem()
     structFieldValue := structValue.FieldByName(name)
@@ -145,6 +148,10 @@ func (db *mockDB) Delete(i interface{}) (interface{},error) {
 }
 
 var db mockDB
+func init() {
+	db.Files=make(map[string]models.FileInfo)
+}
+
 
 /*
 type FileInfo struct {
@@ -177,14 +184,13 @@ func TestUploadFiles(t *testing.T) {
     	f1:=models.FileInfo{"f11f22f33f44f55f66f77f88","fdir","fpath.json","fbase","fname","fnv","studyid",1,"ftype","fformat",1,1,false,true,false,true,10000000,10000000}
 		js,_:=json.Marshal(f1)
 		
-		// Encoding the map
-	db.Files=make(map[string]models.FileInfo)
-	req:=httptest.NewRequest("POST","/files/?data="+url.PathEscape(string(js)),nil)
+	//req:=httptest.NewRequest("POST","/files/?data="+url.PathEscape(string(js)),nil)
+	req:=newfileUploadRequest("/files/?data="+url.PathEscape(string(js)),"fileobj")
+
 	res:=httptest.NewRecorder()
 	CreateFiles(&db,res,req)
 	if status := res.Code; status != http.StatusOK {
-		t.Errorf("handler returned wrong status code: got %v want %v",
-			status, http.StatusOK)
+		t.Errorf("handler returned wrong status code: got %v want %v",status, http.StatusOK)
 	}
 	
 	
@@ -201,7 +207,16 @@ func TestUploadFiles(t *testing.T) {
 	if ti["_id"]!="f11f22f33f44f55f66f77f88" {
 		t.Errorf("handler returned wrong fid: got %v want %v",ti["_id"], "fid")
 	}
-
+	
+	dat,err := ioutil.ReadFile("fpath.json")
+	if err!=nil {
+		//log.Fatal(err)
+	}
+	exp, err := ioutil.ReadFile("fpath_compare.json")
+	if !bytes.Equal(dat,exp) {
+		t.Errorf("file uploaded is corrupted. Expecting %s, but get %s ",string(exp),string(dat))
+	}
+	
 }
 
 func TestRetrieveFiles_DownloadingFile(t *testing.T){
@@ -214,18 +229,20 @@ func TestRetrieveFiles_DownloadingFile(t *testing.T){
 			status, http.StatusOK)
 	}
 	
-	var ti models.FileInfo
+	//var ti models.FileInfo
 	body, err := ioutil.ReadAll(res.Body)
 	if err != nil {
 		panic(err)
 	}
 	log.Println(string(body))
 	
+	/*
 	err = json.Unmarshal(body, &ti)
 	if err != nil {
 		panic(err)
 	}
 	log.Printf("%#v \n",ti)
+	*/
 	//f1:=models.FileInfo{"f11f22f33f44f55f66f77f88","fdir","fpath.json","fbase","fname","fnv","studyid",1,"ftype","fformat",1,1,false,true,false,true,10000000,10000000}
 	
 	dat, err := ioutil.ReadFile("fpath.json")
@@ -239,4 +256,52 @@ func TestRetrieveFiles_DownloadingFile(t *testing.T){
 
 	}
 	*/
+}
+
+
+// upload formfile, copied from this post 
+// https://gist.github.com/mattetti/5914158/f4d1393d83ebedc682a3c8e7bdc6b49670083b84
+
+func newfileUploadRequest(uri string,  paramName string) *http.Request {
+	
+	file, err := os.Open("fpath_compare.json")
+	if err != nil {
+		log.Fatal(err)
+	}
+	fileContents, err := ioutil.ReadAll(file)
+	if err != nil {
+		log.Fatal(err)
+	}
+	
+	/*fi, err := file.Stat()
+	if err != nil {
+		log.Fatal(err)
+	}
+	*/
+	file.Close()
+
+	body := new(bytes.Buffer)
+	writer := multipart.NewWriter(body)
+	part, err := writer.CreateFormFile(paramName, "fpath.json")
+	if err != nil {
+		log.Fatal(err)
+	}
+	part.Write(fileContents)
+
+	/*
+	for key, val := range params {
+		_ = writer.WriteField(key, val)
+	}
+	*/
+	
+	err = writer.Close()
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	req:=httptest.NewRequest("POST", uri, body)
+	req.Header.Add("Content-Type", writer.FormDataContentType())
+
+	log.Printf("created http request:\n %#v \n",req)
+	return req
 }

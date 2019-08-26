@@ -16,22 +16,23 @@ type FileInfo struct {
 	FileName        string `json:"filename"`
 	FileNameVersion string `json:"filename_version"`
 	StudyID         string `json:"studyid"`
-	VersionID       int    `json:"versionid"`
+	VersionID       float64    `json:"versionid"`
 	FileType        string `json:"filetype"`
 	FileFormat      string `json:"fileformat"`
-	SubjectID       int    `json:"subjectid"`
-	VisitID         int    `json:"visitid"`
+	SubjectID       float64    `json:"subjectid"`
+	VisitID         float64    `json:"visitid"`
 	Deleted         bool   `json:"deleted"`
 	Parsed          bool   `json:"parsed"`
 	Active          bool   `json:"active"`
 	Expired         bool   `json:"expired"`
-	DateModified    int64  `json:"datemodified"`
-	DateExpired     int64  `json:"dateexpired"`
+	DateModified    float64  `json:"datemodified"`
+	DateExpired     float64  `json:"dateexpired"`
 }
 
+// kinda like a simple version of a db driver
 type DatabaseAccess interface {
 	Insert(interface{}) (interface{}, error)
-	Find(interface{}) (interface{} , error)
+	Find(interface{}) ([]interface{} , error)
 	Update(interface{},interface{}) (interface{} , error)
 	Delete(interface{}) (interface{},error)
 }
@@ -48,7 +49,7 @@ func (db *DatabaseClient) Insert(i interface{}) (interface{}, error) {
 	return res.InsertedID, nil
 }
 
-func (db *DatabaseClient) Find(i interface{}) (interface{},error) {
+func (db *DatabaseClient) Find(i interface{}) ([]interface{},error) {
 	t,ok := i.(map[string][]string)
 	if !ok{
 		return nil,nil
